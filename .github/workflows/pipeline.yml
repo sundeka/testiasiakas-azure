@@ -1,0 +1,51 @@
+name: GitHub Actions release pipeline PoC for Smart Cloud
+
+on:
+  push:
+    paths:
+      - 'prod/**'
+
+defaults:
+  run:
+    working-directory: ./prod
+
+env:
+  TF_VAR_oidc_request_token: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+  TF_VAR_oidc_request_url: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_URL }}
+
+jobs:
+  terraform:
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        
+      - name: Azure CLI Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: terraform init
+        run: |
+          terraform init \
+            -input=false \
+            -backend-config "storage_account_name=testiasiakas110898" \
+            -backend-config "container_name=testiasiakas-blobcontainer" \
+            -backend-config "resource_group_name=testiasiakas-tf-state" \
+            -backend-config "key=prod.kalletest.tfstate"
+
+      - name: terraform plan
+        run: terraform plan -out tfplan
+
+      - name: terraform apply
+        run: terraform apply -auto-approve tfplan
