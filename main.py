@@ -20,7 +20,8 @@ GH_ORG_NAME = "sundeka"
 GH_REPO_NAME = "testiasiakas-azure"
 
 
-# Authenticate in as Dolphin's Service Principal
+
+# 1. Authenticate in as Dolphin's Service Principal
 credentials = ClientSecretCredential(
     os.environ["TENANT_ID"],
     os.environ["DOLPHIN_SP_USER"],
@@ -29,27 +30,38 @@ credentials = ClientSecretCredential(
 graph_token = credentials.get_token("https://graph.microsoft.com/.default").token
 mgmt_token = credentials.get_token("https://management.azure.com/.default").token
 
-# Create an app registration using Dolphin's identity
+
+
+# 2. Create Terraform state storage resources
+# NOTE: This code already exists in Dolphin. Not rewriting logic here.
+
+
+
+# 3. Create an app registration using Dolphin's identity
 url = "https://graph.microsoft.com/v1.0/applications"
 headers = {"Authorization": f"Bearer {graph_token}"}
 payload = {
     "displayName": "testiasiakas-sp"
 }
 response = requests.post(url,headers=headers,json=payload)
-customer_sp_oid = response.json()["id"]
-customer_sp_app_id = response.json()["appId"]
+customer_app_oid = response.json()["id"]
+customer_app_id = response.json()["appId"]
 
-# Create a service principal for the app registration
+
+
+# 4. Create a service principal for the app registration
 url = "https://graph.microsoft.com/v1.0/servicePrincipals"
 headers = {"Authorization": f"Bearer {graph_token}"}
 payload = {
-    "appId": customer_sp_app_id
+    "appId": customer_app_id
 }
 response = requests.post(url,headers=headers,json=payload)
 service_principal_oid = response.json()["id"]
 
-# Create federated credentials for the customer's SP.
-url = f"https://graph.microsoft.com/v1.0/applications/{customer_sp_oid}/federatedIdentityCredentials"
+
+
+# 5. Create federated credentials for the customer's app registration.
+url = f"https://graph.microsoft.com/v1.0/applications/{customer_app_oid}/federatedIdentityCredentials"
 headers = {"Authorization": f"Bearer {graph_token}"}
 payload = {
     "name": f"gha-pipeline-{CUSTOMER_TECH_NAME}",
@@ -60,9 +72,10 @@ payload = {
 }
 response = requests.post(url,headers=headers,json=payload)
 
-# Grant Contributor access on subscription level for customer's SP
-role_assignment_id = str(uuid.uuid4())
 
+
+# 6. Grant "Contributor" access on subscription level for customer's service principal
+role_assignment_id = str(uuid.uuid4())
 url = f"https://management.azure.com/subscriptions/{os.environ["SUBSCRIPTION_ID"]}/providers/Microsoft.Authorization/roleAssignments/{role_assignment_id}?api-version=2022-04-01"
 headers = {"Authorization": f"Bearer {mgmt_token}"}
 payload = {
